@@ -3,6 +3,8 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import os, math, json
+from functools import lru_cache
+import time
 
 def clean(val):
     if val is None: return None
@@ -31,6 +33,19 @@ class SafeEncoder(json.JSONEncoder):
 
 app = Flask(__name__, static_folder="static")
 
+cache = {}
+CACHE_DURATION = 3600  
+
+def get_cached(company):
+    if company in cache:
+        data, timestamp = cache[company]
+        if time.time() - timestamp < CACHE_DURATION:
+            return data
+    return None
+
+def set_cache(company, data):
+    cache[company] = (data, time.time())
+
 def safe(df, *keys):
     for key in keys:
         if key in df.index:
@@ -48,6 +63,9 @@ def analyze():
     company = request.args.get("ticker", "").upper().strip()
     if not company:
         return Response(json.dumps({"error": "No ticker provided"}), mimetype='application/json'), 400
+    cached = get_cached(company)
+    if cached:
+        return Response(cached, mimetype='application/json')
 
     try:
         ticker = yf.Ticker(company)
@@ -68,7 +86,6 @@ def analyze():
                 return [clean(v) for v in df.loc[key].tolist()]
             return [None] * len(years)
 
-        # --- Liquidity ---
         current_assets      = s(balance_df, "Current Assets")
         current_liabilities = s(balance_df, "Current Liabilities")
         cash                = s(balance_df, "Cash And Cash Equivalents")
@@ -81,7 +98,6 @@ def analyze():
         cash_ratio    = [clean(round(c/l,3)) if l!=0 else None for c,l in zip(cash_in_hand, current_liabilities)]
         quick_ratio   = [clean(round(q/l,3)) if l!=0 else None for q,l in zip(liquid_assets, current_liabilities)]
 
-        # --- Profitability ---
         total_revenue    = s(income_df, "Total Revenue")
         gross_profit     = s(income_df, "Gross Profit")
         operating_income = s(income_df, "Operating Income")
@@ -102,7 +118,6 @@ def analyze():
             roe_list.append(clean(round((net_profit.iloc[i]/avg_e)*100,2))       if avg_e!=0   else None)
             roce_list.append(clean(round((operating_income.iloc[i]/cap_emp)*100,2)) if cap_emp!=0 else None)
 
-        # --- Efficiency ---
         cost_of_revenue  = s(income_df, "Cost Of Revenue")
         inventory        = s(balance_df, "Inventory")
         inventory_exists = inventory.sum() != 0
@@ -128,7 +143,6 @@ def analyze():
 
         eff_years = years[:-1]
 
-        # --- Leverage ---
         total_liabilities = s(balance_df, "Total Liabilities Net Minority Interest")
         interest_expense  = s(income_df, "Interest Expense")
 
@@ -136,7 +150,6 @@ def analyze():
         d2e  = [clean(round(l/e,2)) if e!=0 else None for l,e in zip(total_liabilities, cse)]
         icov = [clean(round(o/i,2)) if i!=0 else None for o,i in zip(operating_income, interest_expense)]
 
-        # --- Price ---
         eps       = s(income_df, "Diluted EPS")
         basic_eps = s(income_df, "Basic EPS")
         try:
@@ -164,7 +177,6 @@ def analyze():
                 div_yield[0] = clean(round((dps/share_price)*100, 2))
             div_payout = [clean(round((dps/e)*100,2)) if e and e!=0 else None for e in eps.tolist()]
 
-        # --- Meta ---
         name       = info.get("longName", company)
         sector     = info.get("sector", "")
         industry   = info.get("industry", "")
@@ -226,7 +238,9 @@ def analyze():
             }
         }
 
-        return Response(json.dumps(payload, cls=SafeEncoder), mimetype='application/json')
+        result = json.dumps(payload, cls=SafeEncoder)
+        set_cache(company, result)
+        return Response(result, mimetype='application/json')
 
     except Exception as e:
         return Response(json.dumps({"error": str(e)}), mimetype='application/json'), 500
