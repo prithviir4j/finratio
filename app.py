@@ -77,6 +77,9 @@ def analyze():
 
         income_df = ticker.get_income_stmt(pretty=True)[::-1]
         balance_df = ticker.get_balance_sheet(pretty=True)[::-1]
+        common_cols = income_df.columns.intersection(balance_df.columns)
+        income_df = income_df[common_cols]
+        balance_df = balance_df[common_cols]
 
         years = [str(c)[:10] for c in income_df.columns]
 
