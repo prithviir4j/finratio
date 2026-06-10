@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>FinRatio — Financial Analysis Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
+
+  :root {
+    --bg:        #080c14;
+    --surface:   #0e1520;
+    --card:      #111927;
+    --border:    #1e2d42;
+    --accent:    #2dd4ff;
+    --accent2:   #7c6bff;
+    --accent3:   #34d399;
+    --warn:      #f97316;
+    --danger:    #f43f5e;
+    --text:      #e2eaf4;
+    --muted:     #5a7394;
+    --mono:      'Space Mono', monospace;
+    --sans:      'Space Grotesk', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    line-height: 1.6;
+  }
+
+  /* ── HEADER ── */
+  header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(8,12,20,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    display: flex; align-items: center; gap: 1rem;
+    height: 60px;
+  }
+  .logo {
+    font-family: var(--mono);
+    font-size: 1rem;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+    white-space: nowrap;
+  }
+  .logo span { color: var(--muted); }
+  .search-bar {
+    display: flex; align-items: center; gap: 0.5rem;
+    margin-left: auto;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.4rem 0.75rem;
+    transition: border-color 0.2s;
+  }
+  .search-bar:focus-within { border-color: var(--accent); }
+  .search-bar input {
+    background: none; border: none; outline: none;
+    color: var(--text); font-family: var(--mono);
+    font-size: 0.85rem; width: 160px;
+    text-transform: uppercase;
+  }
+  .search-bar input::placeholder { color: var(--muted); text-transform: none; }
+  .search-bar button {
+    background: var(--accent); border: none; border-radius: 5px;
+    color: var(--bg); font-family: var(--sans); font-weight: 600;
+    font-size: 0.78rem; padding: 0.3rem 0.75rem;
+    cursor: pointer; transition: opacity 0.2s;
+    white-space: nowrap;
+  }
+  .search-bar button:hover { opacity: 0.85; }
+
+  /* ── HERO / LOADING ── */
+  #hero {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    min-height: calc(100vh - 60px);
+    text-align: center; padding: 2rem;
+  }
+  .hero-ticker {
+    font-family: var(--mono);
+    font-size: clamp(3rem, 10vw, 7rem);
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .hero-sub {
+    color: var(--muted); font-size: 1rem; margin-top: 0.75rem;
+    font-family: var(--mono); letter-spacing: 0.1em;
+  }
+  .hero-input-wrap {
+    display: flex; gap: 0.75rem; margin-top: 2.5rem;
+    flex-wrap: wrap; justify-content: center;
+  }
+  .hero-input {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text);
+    font-family: var(--mono); font-size: 1.1rem;
+    padding: 0.75rem 1.25rem; width: 220px;
+    outline: none; text-transform: uppercase;
+    transition: border-color 0.2s;
+  }
+  .hero-input:focus { border-color: var(--accent); }
+  .hero-input::placeholder { color: var(--muted); text-transform: none; font-size: 0.9rem; }
+  .hero-btn {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border: none; border-radius: 10px;
+    color: var(--bg); font-family: var(--sans); font-weight: 700;
+    font-size: 1rem; padding: 0.75rem 2rem;
+    cursor: pointer; transition: opacity 0.2s, transform 0.15s;
+  }
+  .hero-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+  .hero-btn:active { transform: translateY(0); }
+
+  /* loading spinner */
+  .spinner {
+    width: 40px; height: 40px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 2rem auto;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-msg {
+    color: var(--danger); font-family: var(--mono);
+    font-size: 0.9rem; margin-top: 1rem;
+  }
+
+  /* ── DASHBOARD ── */
+  #dashboard { display: none; padding: 1.5rem 2rem 4rem; max-width: 1400px; margin: 0 auto; }
+
+  /* company banner */
+  .company-banner {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    flex-wrap: wrap; gap: 1rem;
+    padding: 1.5rem 2rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    margin-bottom: 2rem;
+    position: relative; overflow: hidden;
+  }
+  .company-banner::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2), var(--accent3));
+  }
+  .cb-ticker {
+    font-family: var(--mono); font-size: 2rem; font-weight: 700;
+    color: var(--accent); letter-spacing: 0.05em;
+  }
+  .cb-name { font-size: 1rem; color: var(--muted); margin-top: 0.15rem; }
+  .cb-tags { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem; }
+  .tag {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 20px; padding: 0.2rem 0.75rem;
+    font-size: 0.72rem; color: var(--muted);
+    font-family: var(--mono);
+  }
+  .cb-price { text-align: right; }
+  .cb-price .price-val {
+    font-family: var(--mono); font-size: 1.8rem; font-weight: 700;
+    color: var(--text);
+  }
+  .cb-price .price-label { font-size: 0.75rem; color: var(--muted); }
+  .cb-mcap { font-family: var(--mono); font-size: 0.85rem; color: var(--muted); margin-top: 0.25rem; }
+
+  /* nav tabs */
+  .tab-nav {
+    display: flex; gap: 0.25rem; flex-wrap: wrap;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 2rem;
+  }
+  .tab-btn {
+    background: none; border: none; cursor: pointer;
+    color: var(--muted); font-family: var(--sans); font-size: 0.85rem;
+    font-weight: 500; padding: 0.65rem 1.1rem;
+    border-bottom: 2px solid transparent;
+    transition: color 0.2s, border-color 0.2s;
+    white-space: nowrap;
+  }
+  .tab-btn:hover { color: var(--text); }
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* tab panels */
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* section title */
+  .section-title {
+    font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.15em;
+    color: var(--muted); text-transform: uppercase;
+    margin-bottom: 1rem; padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  /* kpi grid */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 2rem;
+  }
+  .kpi-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 10px; padding: 1rem;
+    transition: border-color 0.2s;
+  }
+  .kpi-card:hover { border-color: var(--accent); }
+  .kpi-label { font-size: 0.7rem; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 0.4rem; }
+  .kpi-value { font-family: var(--mono); font-size: 1.3rem; font-weight: 700; color: var(--text); }
+  .kpi-value.good { color: var(--accent3); }
+  .kpi-value.warn { color: var(--warn); }
+  .kpi-value.bad  { color: var(--danger); }
+  .kpi-year { font-size: 0.65rem; color: var(--muted); margin-top: 0.2rem; }
+
+  /* chart grid */
+  .chart-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+    gap: 1.25rem;
+    margin-bottom: 2rem;
+  }
+  .chart-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 1.25rem;
+  }
+  .chart-card.wide { grid-column: 1 / -1; }
+  .chart-title {
+    font-size: 0.75rem; color: var(--muted);
+    font-family: var(--mono); letter-spacing: 0.1em;
+    text-transform: uppercase; margin-bottom: 1rem;
+  }
+  .chart-wrap { position: relative; height: 220px; }
+
+  /* ratio table */
+  .ratio-table {
+    width: 100%; border-collapse: collapse;
+    font-size: 0.82rem; margin-bottom: 2rem;
+  }
+  .ratio-table th {
+    font-family: var(--mono); font-size: 0.68rem;
+    color: var(--muted); letter-spacing: 0.1em;
+    text-align: left; padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .ratio-table td {
+    padding: 0.55rem 0.75rem;
+    border-bottom: 1px solid rgba(30,45,66,0.5);
+    font-family: var(--mono); font-size: 0.82rem;
+  }
+  .ratio-table tr:hover td { background: var(--surface); }
+  .ratio-table td:first-child { color: var(--muted); font-family: var(--sans); font-size: 0.8rem; }
+  .ratio-table td:not(:first-child) { text-align: right; }
+  .null-val { color: var(--border); }
+
+  /* CCC highlight */
+  .ccc-card {
+    background: linear-gradient(135deg, rgba(45,212,255,0.06), rgba(124,107,255,0.06));
+    border: 1px solid rgba(45,212,255,0.2);
+    border-radius: 12px; padding: 1.25rem;
+    margin-bottom: 2rem;
+  }
+  .ccc-title { font-family: var(--mono); font-size: 0.7rem; color: var(--accent); letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 0.75rem; }
+  .ccc-grid { display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center; }
+  .ccc-item { text-align: center; }
+  .ccc-val { font-family: var(--mono); font-size: 1.5rem; font-weight: 700; }
+  .ccc-lbl { font-size: 0.68rem; color: var(--muted); margin-top: 0.2rem; }
+  .ccc-op { font-size: 1.5rem; color: var(--muted); align-self: center; padding-top: 0.5rem; }
+  .ccc-result { border-left: 1px solid var(--border); padding-left: 1.5rem; }
+  .ccc-result .ccc-val { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">FIN<span>/</span>RATIO</div>
+  <div class="search-bar" id="headerSearch" style="display:none">
+    <input type="text" id="headerTicker" placeholder="Enter ticker…" maxlength="20"/>
+    <button onclick="runFromHeader()">Analyze</button>
+  </div>
+</header>
+
+<!-- HERO -->
+<div id="hero">
+  <div class="hero-ticker">FINRATIO</div>
+  <div class="hero-sub">// financial analysis dashboard</div>
+  <div class="hero-input-wrap">
+    <input class="hero-input" type="text" id="heroTicker" placeholder="Enter ticker (e.g. AAPL)" maxlength="20"
+      onkeydown="if(event.key==='Enter') runAnalysis()"/>
+    <button class="hero-btn" onclick="runAnalysis()">Analyze →</button>
+  </div>
+  <div id="heroStatus"></div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+  <div class="company-banner">
+    <div>
+      <div class="cb-ticker" id="cbTicker"></div>
+      <div class="cb-name" id="cbName"></div>
+      <div class="cb-tags" id="cbTags"></div>
+    </div>
+    <div class="cb-price">
+      <div class="price-val" id="cbPrice"></div>
+      <div class="price-label" id="cbCurrency"></div>
+      <div class="cb-mcap" id="cbMcap"></div>
+    </div>
+  </div>
+
+  <div class="tab-nav">
+    <button class="tab-btn active" onclick="switchTab('overview',this)">Overview</button>
+    <button class="tab-btn" onclick="switchTab('profitability',this)">Profitability</button>
+    <button class="tab-btn" onclick="switchTab('liquidity',this)">Liquidity</button>
+    <button class="tab-btn" onclick="switchTab('efficiency',this)">Efficiency</button>
+    <button class="tab-btn" onclick="switchTab('leverage',this)">Leverage</button>
+    <button class="tab-btn" onclick="switchTab('shareholders',this)">Shareholders</button>
+    <button class="tab-btn" onclick="switchTab('all',this)">All Ratios</button>
+  </div>
+
+  <!-- OVERVIEW -->
+  <div class="tab-panel active" id="tab-overview">
+    <div class="section-title">Key Metrics — Latest Year</div>
+    <div class="kpi-grid" id="kpiGrid"></div>
+    <div class="chart-grid">
+      <div class="chart-card wide">
+        <div class="chart-title">Revenue · Gross Profit · Net Income</div>
+        <div class="chart-wrap"><canvas id="chartRevenue"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Profit Margins (%)</div>
+        <div class="chart-wrap"><canvas id="chartMargins"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Return Ratios (%)</div>
+        <div class="chart-wrap"><canvas id="chartReturns"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROFITABILITY -->
+  <div class="tab-panel" id="tab-profitability">
+    <div class="section-title">Profitability</div>
+    <div class="chart-grid">
+      <div class="chart-card wide">
+        <div class="chart-title">Gross · Operating · Net Profit Margin (%)</div>
+        <div class="chart-wrap"><canvas id="chartMargins2"></canvas></div>
+      </div>
+      <div class="chart-card wide">
+        <div class="chart-title">ROA · ROE · ROCE (%)</div>
+        <div class="chart-wrap"><canvas id="chartReturns2"></canvas></div>
+      </div>
+      <div class="chart-card wide">
+        <div class="chart-title">EBITDA vs Net Income</div>
+        <div class="chart-wrap"><canvas id="chartEbitda"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIQUIDITY -->
+  <div class="tab-panel" id="tab-liquidity">
+    <div class="section-title">Liquidity</div>
+    <div class="chart-grid">
+      <div class="chart-card wide">
+        <div class="chart-title">Current · Quick · Cash Ratio</div>
+        <div class="chart-wrap"><canvas id="chartLiquidity"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- EFFICIENCY -->
+  <div class="tab-panel" id="tab-efficiency">
+    <div class="section-title">Efficiency</div>
+    <div id="cccBlock"></div>
+    <div class="chart-grid">
+      <div class="chart-card wide">
+        <div class="chart-title">Cash Conversion Cycle — DSO · DSI · DPO (days)</div>
+        <div class="chart-wrap"><canvas id="chartCCC"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Turnover Ratios</div>
+        <div class="chart-wrap"><canvas id="chartTurnover"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Assets Turnover</div>
+        <div class="chart-wrap"><canvas id="chartAssetsTurnover"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LEVERAGE -->
+  <div class="tab-panel" id="tab-leverage">
+    <div class="section-title">Leverage & Capital Structure</div>
+    <div class="chart-grid">
+      <div class="chart-card wide">
+        <div class="chart-title">Assets · Liabilities · Equity (Balance Sheet Composition)</div>
+        <div class="chart-wrap"><canvas id="chartBalanceSheet"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Debt to Assets · Debt to Equity</div>
+        <div class="chart-wrap"><canvas id="chartDebt"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Interest Coverage Ratio</div>
+        <div class="chart-wrap"><canvas id="chartICov"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SHAREHOLDERS -->
+  <div class="tab-panel" id="tab-shareholders">
+    <div class="section-title">Shareholder Value</div>
+    <div class="chart-grid">
+      <div class="chart-card wide">
+        <div class="chart-title">Basic & Diluted EPS</div>
+        <div class="chart-wrap"><canvas id="chartEPS"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Dividend Payout (%)</div>
+        <div class="chart-wrap"><canvas id="chartDivPayout"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">P/E Ratio</div>
+        <div class="chart-wrap"><canvas id="chartPE"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ALL RATIOS -->
+  <div class="tab-panel" id="tab-all">
+    <div class="section-title">All Ratios</div>
+    <div id="allRatiosTables"></div>
+  </div>
+</div>
+
+<script>
+let DATA = null;
+
+const ACCENT  = '#2dd4ff';
+const ACCENT2 = '#7c6bff';
+const ACCENT3 = '#34d399';
+const WARN    = '#f97316';
+const DANGER  = '#f43f5e';
+const MUTED   = '#5a7394';
+const BORDER  = '#1e2d42';
+const charts  = {};
+
+const CHART_DEFAULTS = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { labels: { color: '#8aa4c0', font: { family: 'Space Mono', size: 10 }, boxWidth: 12, padding: 14 } }, tooltip: { backgroundColor: '#0e1520', borderColor: '#1e2d42', borderWidth: 1, titleColor: '#2dd4ff', bodyColor: '#e2eaf4', titleFont: { family: 'Space Mono' }, bodyFont: { family: 'Space Mono', size: 11 } } },
+  scales: {
+    x: { ticks: { color: MUTED, font: { family: 'Space Mono', size: 10 }, maxRotation: 45 }, grid: { color: BORDER } },
+    y: { ticks: { color: MUTED, font: { family: 'Space Mono', size: 10 } }, grid: { color: BORDER } }
+  }
+};
+
+function mkChart(id, config) {
+  if (charts[id]) charts[id].destroy();
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  charts[id] = new Chart(ctx, config);
+}
+
+function fmt(v, suffix='') {
+  if (v === null || v === undefined) return '<span class="null-val">—</span>';
+  if (Math.abs(v) >= 1e12) return (v/1e12).toFixed(2)+'T'+suffix;
+  if (Math.abs(v) >= 1e9)  return (v/1e9).toFixed(2)+'B'+suffix;
+  if (Math.abs(v) >= 1e6)  return (v/1e6).toFixed(2)+'M'+suffix;
+  return (+v).toFixed(2)+suffix;
+}
+
+function fmtNum(v) {
+  if (v === null || v === undefined) return '<span class="null-val">—</span>';
+  return (+v).toFixed(2);
+}
+
+function clean(arr) { return arr.map(v => (v === null || v === undefined) ? null : +v); }
+
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  btn.classList.add('active');
+}
+
+async function runAnalysis() {
+  const ticker = document.getElementById('heroTicker').value.trim().toUpperCase();
+  if (!ticker) return;
+  doAnalysis(ticker);
+}
+
+async function runFromHeader() {
+  const ticker = document.getElementById('headerTicker').value.trim().toUpperCase();
+  if (!ticker) return;
+  doAnalysis(ticker);
+}
+
+async function doAnalysis(ticker) {
+  const statusEl = document.getElementById('heroStatus');
+  statusEl.innerHTML = '<div class="spinner"></div><div style="color:#5a7394;font-family:Space Mono;font-size:0.8rem">Fetching data for '+ticker+'…</div>';
+  document.getElementById('hero').style.display = 'flex';
+  document.getElementById('dashboard').style.display = 'none';
+
+  try {
+    const res = await fetch('/api/analyze?ticker='+ticker);
+    const data = await res.json();
+    if (data.error) { statusEl.innerHTML = '<div class="error-msg">⚠ '+data.error+'</div>'; return; }
+    DATA = data;
+    renderDashboard(data);
+  } catch(e) {
+    statusEl.innerHTML = '<div class="error-msg">⚠ Network error: '+e.message+'</div>';
+  }
+}
+
+function renderDashboard(d) {
+  const m = d.meta, r = d.ratios, raw = d.raw;
+  const years = m.years;
+  const effYears = m.eff_years;
+  const retYears = m.ret_years;
+
+  // header
+  document.getElementById('cbTicker').textContent = m.ticker;
+  document.getElementById('cbName').textContent = m.name;
+  document.getElementById('cbTags').innerHTML =
+    [m.exchange, m.sector, m.industry].filter(Boolean).map(t=>`<span class="tag">${t}</span>`).join('');
+  document.getElementById('cbPrice').textContent = m.share_price ? '$'+m.share_price.toFixed(2) : '—';
+  document.getElementById('cbCurrency').textContent = m.currency || '';
+  document.getElementById('cbMcap').textContent = m.market_cap ? 'Mkt Cap: '+fmt(m.market_cap) : '';
+  document.getElementById('headerTicker').value = m.ticker;
+
+  // KPI grid
+  const liq = r.liquidity, prof = r.profitability, lev = r.leverage, price = r.price;
+  const latestIdx = 0;
+  function kpiColor(v, good, bad) {
+    if (v===null) return '';
+    if (good !== undefined && v >= good) return 'good';
+    if (bad  !== undefined && v <= bad)  return 'bad';
+    return 'warn';
+  }
+  const kpis = [
+    { label: 'Current Ratio',  value: liq.current_ratio[latestIdx], fmt: v=>v?.toFixed(2), color: v => v>=2?'good':v>=1?'warn':'bad' },
+    { label: 'Quick Ratio',    value: liq.quick_ratio[latestIdx],   fmt: v=>v?.toFixed(2), color: v => v>=1?'good':v>=0.5?'warn':'bad' },
+    { label: 'Gross Margin',   value: prof.gpm[latestIdx],          fmt: v=>v?.toFixed(1)+'%', color: v => v>=40?'good':v>=20?'warn':'bad' },
+    { label: 'Net Margin',     value: prof.npm[latestIdx],          fmt: v=>v?.toFixed(1)+'%', color: v => v>=15?'good':v>=5?'warn':'bad' },
+    { label: 'ROE',            value: prof.roe[0],                  fmt: v=>v?.toFixed(1)+'%', color: v => v>=15?'good':v>=8?'warn':'bad' },
+    { label: 'ROA',            value: prof.roa[0],                  fmt: v=>v?.toFixed(1)+'%', color: v => v>=10?'good':v>=5?'warn':'bad' },
+    { label: 'Debt/Equity',    value: lev.debt_to_equity[latestIdx],fmt: v=>v?.toFixed(2),    color: v => v<=1?'good':v<=3?'warn':'bad' },
+    { label: 'Diluted EPS',    value: price.diluted_eps[latestIdx], fmt: v=>v?.toFixed(2),    color: v => v>0?'good':'bad' },
+    { label: 'P/E Ratio',      value: price.pe_ratio[latestIdx],    fmt: v=>v?.toFixed(1),    color: v => v<25?'good':v<40?'warn':'bad' },
+    { label: 'Div Yield',      value: price.div_yield[latestIdx],   fmt: v=>v?.toFixed(2)+'%',color: v => v>0?'good':'' },
+  ];
+  document.getElementById('kpiGrid').innerHTML = kpis.map(k => {
+    const val = k.value;
+    const disp = val !== null && val !== undefined ? k.fmt(val) : '—';
+    const cls = val !== null && val !== undefined ? k.color(val) : '';
+    return `<div class="kpi-card"><div class="kpi-label">${k.label}</div><div class="kpi-value ${cls}">${disp}</div><div class="kpi-year">${years[latestIdx]}</div></div>`;
+  }).join('');
+
+  // shared chart config builder
+  const lineDs = (label, data, color, dash=[]) => ({
+    label, data: clean(data),
+    borderColor: color, backgroundColor: color+'22',
+    borderWidth: 2, pointRadius: 4, pointHoverRadius: 6,
+    borderDash: dash, fill: false, tension: 0.3, spanGaps: true
+  });
+  const barDs = (label, data, color) => ({
+    label, data: clean(data),
+    backgroundColor: color+'99', borderColor: color,
+    borderWidth: 1, borderRadius: 4
+  });
+
+  const xCfg = (labels) => ({
+    ...CHART_DEFAULTS,
+    scales: { ...CHART_DEFAULTS.scales, x: { ...CHART_DEFAULTS.scales.x, ticks: { ...CHART_DEFAULTS.scales.x.ticks, color: MUTED } } }
+  });
+
+  // ── Overview charts ──
+  mkChart('chartRevenue', { type: 'bar',
+    data: { labels: years, datasets: [
+      barDs('Revenue', raw.revenue, ACCENT),
+      barDs('Gross Profit', raw.gross_profit, ACCENT2),
+      barDs('Net Income', raw.net_income, ACCENT3),
+    ]},
+    options: { ...CHART_DEFAULTS, plugins: { ...CHART_DEFAULTS.plugins } }
+  });
+
+  mkChart('chartMargins', { type: 'line',
+    data: { labels: years, datasets: [
+      lineDs('Gross Margin %',  prof.gpm, ACCENT),
+      lineDs('Operating Margin %', prof.opm, ACCENT2),
+      lineDs('Net Margin %',    prof.npm, ACCENT3),
+    ]},
+    options: CHART_DEFAULTS
+  });
+
+  mkChart('chartReturns', { type: 'line',
+    data: { labels: retYears, datasets: [
+      lineDs('ROE %',  prof.roe, ACCENT),
+      lineDs('ROA %',  prof.roa, ACCENT2),
+      lineDs('ROCE %', prof.roce, ACCENT3),
+    ]},
+    options: CHART_DEFAULTS
+  });
+
+  // ── Profitability tab ──
+  mkChart('chartMargins2', { type: 'line',
+    data: { labels: years, datasets: [
+      lineDs('Gross %', prof.gpm, ACCENT),
+      lineDs('Operating %', prof.opm, ACCENT2),
+      lineDs('Net %', prof.npm, ACCENT3),
+    ]},
+    options: CHART_DEFAULTS
+  });
+  mkChart('chartReturns2', { type: 'line',
+    data: { labels: retYears, datasets: [
+      lineDs('ROE %', prof.roe, ACCENT),
+      lineDs('ROA %', prof.roa, ACCENT2),
+      lineDs('ROCE %', prof.roce, ACCENT3),
+    ]},
+    options: CHART_DEFAULTS
+  });
+  mkChart('chartEbitda', { type: 'bar',
+    data: { labels: years, datasets: [
+      barDs('EBITDA', raw.ebitda, ACCENT),
+      barDs('Net Income', raw.net_income, ACCENT3),
+    ]},
+    options: CHART_DEFAULTS
+  });
+
+  // ── Liquidity tab ──
+  mkChart('chartLiquidity', { type: 'line',
+    data: { labels: years, datasets: [
+      lineDs('Current Ratio', liq.current_ratio, ACCENT),
+      lineDs('Quick Ratio',   liq.quick_ratio,   ACCENT2),
+      lineDs('Cash Ratio',    liq.cash_ratio,     ACCENT3),
+    ]},
+    options: CHART_DEFAULTS
+  });
+
+  // ── Efficiency tab ──
+  const eff = r.efficiency;
+  // CCC block
+  const lastDso = eff.dso.find(v=>v!==null);
+  const lastDsi = eff.dsi.find(v=>v!==null);
+  const lastDpo = eff.dpo.find(v=>v!==null);
+  if (lastDso!==undefined || lastDsi!==undefined || lastDpo!==undefined) {
+    const ccc = (lastDso||0) + (lastDsi||0) - (lastDpo||0);
+    document.getElementById('cccBlock').innerHTML = `
+      <div class="ccc-card">
+        <div class="ccc-title">// Cash Conversion Cycle — Latest Period</div>
+        <div class="ccc-grid">
+          <div class="ccc-item"><div class="ccc-val" style="color:${ACCENT}">${lastDso?.toFixed(1)||'—'}</div><div class="ccc-lbl">DSO (days)</div></div>
+          <div class="ccc-op">+</div>
+          <div class="ccc-item"><div class="ccc-val" style="color:${ACCENT2}">${lastDsi?.toFixed(1)||'—'}</div><div class="ccc-lbl">DSI (days)</div></div>
+          <div class="ccc-op">−</div>
+          <div class="ccc-item"><div class="ccc-val" style="color:${WARN}">${lastDpo?.toFixed(1)||'—'}</div><div class="ccc-lbl">DPO (days)</div></div>
+          <div class="ccc-result"><div class="ccc-val">${ccc.toFixed(1)}</div><div class="ccc-lbl">CCC (days)</div></div>
+        </div>
+      </div>`;
+  }
+
+  mkChart('chartCCC', { type: 'line',
+    data: { labels: effYears, datasets: [
+      lineDs('DSO', eff.dso, ACCENT),
+      lineDs('DSI', eff.dsi, ACCENT2),
+      lineDs('DPO', eff.dpo, WARN, [6,3]),
+    ]},
+    options: CHART_DEFAULTS
+  });
+  mkChart('chartTurnover', { type: 'line',
+    data: { labels: effYears, datasets: [
+      lineDs('Receivables', eff.receivables_turnover, ACCENT),
+      lineDs('Payables',    eff.payables_turnover,    ACCENT2),
+      lineDs('Inventory',   eff.inventory_turnover,   ACCENT3),
+    ]},
+    options: CHART_DEFAULTS
+  });
+  mkChart('chartAssetsTurnover', { type: 'line',
+    data: { labels: effYears, datasets: [ lineDs('Assets Turnover', eff.assets_turnover, ACCENT) ] },
+    options: CHART_DEFAULTS
+  });
+
+  // ── Leverage tab ──
+  const lv = r.leverage;
+  mkChart('chartBalanceSheet', { type: 'bar',
+    data: { labels: years, datasets: [
+      barDs('Total Assets',      raw.total_assets,      ACCENT),
+      barDs('Total Liabilities', raw.total_liabilities, DANGER),
+      barDs('Equity',            raw.equity,            ACCENT3),
+    ]},
+    options: CHART_DEFAULTS
+  });
+  mkChart('chartDebt', { type: 'line',
+    data: { labels: years, datasets: [
+      lineDs('Debt/Assets', lv.debt_to_assets, ACCENT),
+      lineDs('Debt/Equity', lv.debt_to_equity, WARN),
+    ]},
+    options: CHART_DEFAULTS
+  });
+  mkChart('chartICov', { type: 'bar',
+    data: { labels: years, datasets: [ barDs('Interest Coverage', lv.interest_coverage, ACCENT3) ] },
+    options: CHART_DEFAULTS
+  });
+
+  // ── Shareholders tab ──
+  const pr = r.price;
+  mkChart('chartEPS', { type: 'bar',
+    data: { labels: years, datasets: [
+      barDs('Basic EPS',   pr.basic_eps,   ACCENT),
+      barDs('Diluted EPS', pr.diluted_eps, ACCENT2),
+    ]},
+    options: CHART_DEFAULTS
+  });
+  mkChart('chartDivPayout', { type: 'line',
+    data: { labels: years, datasets: [ lineDs('Payout %', pr.div_payout, ACCENT3) ] },
+    options: CHART_DEFAULTS
+  });
+  mkChart('chartPE', { type: 'bar',
+    data: { labels: years, datasets: [ barDs('P/E', pr.pe_ratio, ACCENT) ] },
+    options: CHART_DEFAULTS
+  });
+
+  // ── All Ratios table ──
+  const sections = [
+    { title: 'Liquidity', rows: [
+      ['Current Ratio', liq.current_ratio, years],
+      ['Quick Ratio',   liq.quick_ratio,   years],
+      ['Cash Ratio',    liq.cash_ratio,    years],
+    ]},
+    { title: 'Profitability', rows: [
+      ['Gross Profit Margin (%)',    prof.gpm,  years],
+      ['Operating Profit Margin (%)',prof.opm,  years],
+      ['Net Profit Margin (%)',      prof.npm,  years],
+      ['Return on Assets (%)',       prof.roa,  retYears],
+      ['Return on Equity (%)',       prof.roe,  retYears],
+      ['ROCE (%)',                   prof.roce, retYears],
+    ]},
+    { title: 'Efficiency', rows: [
+      ['Inventory Turnover',   eff.inventory_turnover,   effYears],
+      ['Receivables Turnover', eff.receivables_turnover, effYears],
+      ['Assets Turnover',      eff.assets_turnover,      effYears],
+      ['Payables Turnover',    eff.payables_turnover,    effYears],
+      ['Days Sale of Inventory',   eff.dsi, effYears],
+      ['Days Sales Outstanding',   eff.dso, effYears],
+      ['Days Payable Outstanding', eff.dpo, effYears],
+    ]},
+    { title: 'Leverage', rows: [
+      ['Debt to Assets',        lv.debt_to_assets,    years],
+      ['Debt to Equity',        lv.debt_to_equity,    years],
+      ['Interest Coverage',     lv.interest_coverage, years],
+    ]},
+    { title: 'Price Ratios', rows: [
+      ['Basic EPS',     pr.basic_eps,   years],
+      ['Diluted EPS',   pr.diluted_eps, years],
+      ['P/E',           pr.pe_ratio,    years],
+      ['PEG',           pr.peg_ratio,   years],
+      ['Div per Share', pr.dps,         years],
+      ['Div Yield (%)', pr.div_yield,   years],
+      ['Div Payout (%)',pr.div_payout,  years],
+    ]},
+  ];
+
+  document.getElementById('allRatiosTables').innerHTML = sections.map(sec => {
+    const hdrs = ['Metric', ...sec.rows[0][2]].map(h=>`<th>${h}</th>`).join('');
+    const rows = sec.rows.map(([name, vals]) => {
+      const cells = vals.map(v => `<td>${v!==null&&v!==undefined ? (+v).toFixed(2) : '<span class="null-val">—</span>'}</td>`).join('');
+      return `<tr><td>${name}</td>${cells}</tr>`;
+    }).join('');
+    return `<div class="section-title" style="margin-top:1.5rem">${sec.title}</div>
+      <table class="ratio-table"><thead><tr>${hdrs}</tr></thead><tbody>${rows}</tbody></table>`;
+  }).join('');
+
+  // show dashboard
+  document.getElementById('hero').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('headerSearch').style.display = 'flex';
+
+  // reset to overview tab
+  switchTab('overview', document.querySelector('.tab-btn'));
+}
+</script>
+</body>
+</html>
