@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>FinRatio — Financial Analysis Dashboard</title>
+<title>Fanalyser — Financial Analysis Dashboard</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono:wght@400;700&display=swap');
@@ -28,7 +28,7 @@
   .search-bar button{background:var(--accent);border:none;border-radius:5px;color:var(--bg);font-family:var(--sans);font-weight:600;font-size:0.78rem;padding:0.3rem 0.75rem;cursor:pointer;transition:opacity 0.2s;white-space:nowrap;}
   .search-bar button:hover{opacity:0.85;}
 
-  #hero{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 60px);text-align:center;padding:2rem;}
+  #hero{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - f);text-align:center;padding:2rem;}
   .hero-ticker{font-family:var(--mono);font-size:clamp(3rem,10vw,7rem);font-weight:700;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-0.02em;line-height:1;}
   .hero-sub{color:var(--muted);font-size:1rem;margin-top:0.75rem;font-family:var(--mono);letter-spacing:0.1em;}
   .hero-input-wrap{display:flex;gap:0.75rem;margin-top:2.5rem;flex-wrap:wrap;justify-content:center;}
@@ -103,7 +103,7 @@
 <body>
 
 <header>
-  <div class="logo">FIN<span>/</span>RATIO</div>
+  <div class="logo">FANALYSER</div>
   <div class="search-bar" id="headerSearch" style="display:none">
     <input type="text" id="headerTicker" placeholder="Enter ticker…" maxlength="20"/>
     <button onclick="runFromHeader()">Analyze</button>
@@ -111,7 +111,7 @@
 </header>
 
 <div id="hero">
-  <div class="hero-ticker">FINRATIO</div>
+  <div class="hero-ticker">FANALYSER</div>
   <div class="hero-sub">// financial analysis dashboard</div>
   <div class="hero-input-wrap">
     <input class="hero-input" type="text" id="heroTicker" placeholder="Enter ticker (e.g. AAPL)" maxlength="20" onkeydown="if(event.key==='Enter') runAnalysis()"/>
