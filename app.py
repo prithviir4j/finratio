@@ -143,7 +143,7 @@ def analyze():
             roe_list.append(clean(round((net_profit.iloc[i+1]/avg_e)*100,2))          if avg_e!=0   else None)
             roce_list.append(clean(round((operating_income.iloc[i+1]/cap_emp)*100,2)) if cap_emp!=0 else None)
 
-        ret_years = years[1:]
+        ret_years = years[-(len(roa_list)):]
 
         # --- Efficiency ---
         cost_of_revenue  = s(income_df, "Cost Of Revenue")
