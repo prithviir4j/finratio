@@ -2,9 +2,7 @@ from flask import Flask, Response, send_from_directory, request
 import yfinance as yf
 import pandas as pd
 import numpy as np
-import os, math, json
-from functools import lru_cache
-import time
+import os, math, json, time
 
 def clean(val):
     if val is None: return None
@@ -34,7 +32,7 @@ class SafeEncoder(json.JSONEncoder):
 app = Flask(__name__, static_folder="static")
 
 cache = {}
-CACHE_DURATION = 3600  
+CACHE_DURATION = 3600
 
 def get_cached(company):
     if company in cache:
@@ -63,6 +61,7 @@ def analyze():
     company = request.args.get("ticker", "").upper().strip()
     if not company:
         return Response(json.dumps({"error": "No ticker provided"}), mimetype='application/json'), 400
+
     cached = get_cached(company)
     if cached:
         return Response(cached, mimetype='application/json')
@@ -78,22 +77,28 @@ def analyze():
         income_df = ticker.get_income_stmt(pretty=True)
         balance_df = ticker.get_balance_sheet(pretty=True)
 
+        # align to common years, sorted oldest first
         common_cols = sorted(
             income_df.columns.intersection(balance_df.columns),
             key=lambda x: str(x)
         )
-
         income_df = income_df[common_cols]
         balance_df = balance_df[common_cols]
 
         years = [str(c)[:10] for c in income_df.columns]
+        last = len(years) - 1
 
         def s(df, *keys): return safe(df, *keys)
-        def raw(df, key):
-            if key in df.index:
-                return [clean(v) for v in df.loc[key].tolist()]
+
+        def raw(df, *keys):
+            for key in keys:
+                if key in df.index:
+                    vals = [clean(v) for v in df.loc[key].tolist()]
+                    if any(v is not None for v in vals):
+                        return vals
             return [None] * len(years)
 
+        # --- Liquidity ---
         current_assets      = s(balance_df, "Current Assets")
         current_liabilities = s(balance_df, "Current Liabilities")
         cash                = s(balance_df, "Cash And Cash Equivalents")
@@ -106,6 +111,7 @@ def analyze():
         cash_ratio    = [clean(round(c/l,3)) if l!=0 else None for c,l in zip(cash_in_hand, current_liabilities)]
         quick_ratio   = [clean(round(q/l,3)) if l!=0 else None for q,l in zip(liquid_assets, current_liabilities)]
 
+        # --- Profitability ---
         total_revenue    = s(income_df, "Total Revenue")
         gross_profit     = s(income_df, "Gross Profit")
         operating_income = s(income_df, "Operating Income")
@@ -113,19 +119,22 @@ def analyze():
         assets           = s(balance_df, "Total Assets")
         cse              = s(balance_df, "Common Stock Equity")
 
-        gpm = [clean(round((g/r)*100,2)) if r!=0 else None for g,r in zip(gross_profit, total_revenue)]
-        opm = [clean(round((o/r)*100,2)) if r!=0 else None for o,r in zip(operating_income, total_revenue)]
-        npm = [clean(round((n/r)*100,2)) if r!=0 else None for n,r in zip(net_profit, total_revenue)]
+        gpm  = [clean(round((g/r)*100,2)) if r!=0 else None for g,r in zip(gross_profit, total_revenue)]
+        opm  = [clean(round((o/r)*100,2)) if r!=0 else None for o,r in zip(operating_income, total_revenue)]
+        npm  = [clean(round((n/r)*100,2)) if r!=0 else None for n,r in zip(net_profit, total_revenue)]
 
         roa_list, roe_list, roce_list = [], [], []
         for i in range(len(assets)-1):
             avg_a   = avgfind(assets.iloc[i], assets.iloc[i+1])
             avg_e   = avgfind(cse.iloc[i], cse.iloc[i+1])
             cap_emp = avg_a - current_liabilities.iloc[i]
-            roa_list.append(clean(round((net_profit.iloc[i]/avg_a)*100,2))       if avg_a!=0   else None)
-            roe_list.append(clean(round((net_profit.iloc[i]/avg_e)*100,2))       if avg_e!=0   else None)
+            roa_list.append(clean(round((net_profit.iloc[i]/avg_a)*100,2))          if avg_a!=0   else None)
+            roe_list.append(clean(round((net_profit.iloc[i]/avg_e)*100,2))          if avg_e!=0   else None)
             roce_list.append(clean(round((operating_income.iloc[i]/cap_emp)*100,2)) if cap_emp!=0 else None)
 
+        ret_years = years[:-1]
+
+        # --- Efficiency ---
         cost_of_revenue  = s(income_df, "Cost Of Revenue")
         inventory        = s(balance_df, "Inventory")
         inventory_exists = inventory.sum() != 0
@@ -134,23 +143,24 @@ def analyze():
 
         inv_turn, dso, dpo, dsi, pay_turn, rec_turn, ast_turn = [], [], [], [], [], [], []
         for i in range(len(total_revenue)-1):
-            avg_rec = avgfind(accs.iloc[i],     accs.iloc[i+1])
-            avg_pay = avgfind(payable.iloc[i],  payable.iloc[i+1])
+            avg_rec = avgfind(accs.iloc[i],      accs.iloc[i+1])
+            avg_pay = avgfind(payable.iloc[i],   payable.iloc[i+1])
             avg_inv = avgfind(inventory.iloc[i], inventory.iloc[i+1])
-            avg_ast = avgfind(assets.iloc[i],   assets.iloc[i+1])
+            avg_ast = avgfind(assets.iloc[i],    assets.iloc[i+1])
             cor_i   = cost_of_revenue.iloc[i]
             rev_i   = total_revenue.iloc[i]
 
-            inv_turn.append(clean(round(cor_i/avg_inv,2))          if (inventory_exists and avg_inv!=0) else None)
-            dso.append(clean(round((avg_rec/rev_i)*365,2))          if rev_i!=0 else None)
-            dpo.append(clean(round((avg_pay/cor_i)*365,2))          if cor_i!=0 else None)
-            dsi.append(clean(round((avg_inv/cor_i)*365,2))          if (inventory_exists and cor_i!=0) else None)
-            pay_turn.append(clean(round(cor_i/avg_pay,2))           if avg_pay!=0 else None)
-            rec_turn.append(clean(round(rev_i/avg_rec,2))           if avg_rec!=0 else None)
-            ast_turn.append(clean(round(rev_i/avg_ast,2))           if avg_ast!=0 else None)
+            inv_turn.append(clean(round(cor_i/avg_inv,2))         if (inventory_exists and avg_inv!=0) else None)
+            dso.append(clean(round((avg_rec/rev_i)*365,2))         if rev_i!=0 else None)
+            dpo.append(clean(round((avg_pay/cor_i)*365,2))         if cor_i!=0 else None)
+            dsi.append(clean(round((avg_inv/cor_i)*365,2))         if (inventory_exists and cor_i!=0) else None)
+            pay_turn.append(clean(round(cor_i/avg_pay,2))          if avg_pay!=0 else None)
+            rec_turn.append(clean(round(rev_i/avg_rec,2))          if avg_rec!=0 else None)
+            ast_turn.append(clean(round(rev_i/avg_ast,2))          if avg_ast!=0 else None)
 
         eff_years = years[:-1]
 
+        # --- Leverage ---
         total_liabilities = s(balance_df, "Total Liabilities Net Minority Interest")
         interest_expense  = s(income_df, "Interest Expense")
 
@@ -158,6 +168,7 @@ def analyze():
         d2e  = [clean(round(l/e,2)) if e!=0 else None for l,e in zip(total_liabilities, cse)]
         icov = [clean(round(o/i,2)) if i!=0 else None for o,i in zip(operating_income, interest_expense)]
 
+        # --- Price ---
         eps       = s(income_df, "Diluted EPS")
         basic_eps = s(income_df, "Basic EPS")
         try:
@@ -167,24 +178,25 @@ def analyze():
 
         dps = info.get("dividendRate")
 
-        eps_growth = ((eps.iloc[0]-eps.iloc[1])/eps.iloc[1])*100 if len(eps)>1 and eps.iloc[1]!=0 else None
+        eps_growth = ((eps.iloc[last]-eps.iloc[last-1])/eps.iloc[last-1])*100 if last>0 and eps.iloc[last-1]!=0 else None
 
         pe_ratio  = [None]*len(years)
         peg_ratio = [None]*len(years)
-        if eps.iloc[0] != 0:
-            pe_ratio[0] = clean(round(share_price/eps.iloc[0], 2))
-        if eps_growth and eps_growth>0 and pe_ratio[0]:
-            peg_ratio[0] = clean(round(pe_ratio[0]/eps_growth, 2))
+        if eps.iloc[last] != 0:
+            pe_ratio[last] = clean(round(share_price/eps.iloc[last], 2))
+        if eps_growth and eps_growth>0 and pe_ratio[last]:
+            peg_ratio[last] = clean(round(pe_ratio[last]/eps_growth, 2))
 
         div_yield  = [None]*len(years)
         dps_series = [None]*len(years)
         div_payout = [None]*len(years)
         if dps:
-            dps_series[0] = clean(dps)
+            dps_series[last] = clean(dps)
             if share_price:
-                div_yield[0] = clean(round((dps/share_price)*100, 2))
+                div_yield[last] = clean(round((dps/share_price)*100, 2))
             div_payout = [clean(round((dps/e)*100,2)) if e and e!=0 else None for e in eps.tolist()]
 
+        # --- Meta ---
         name       = info.get("longName", company)
         sector     = info.get("sector", "")
         industry   = info.get("industry", "")
@@ -200,7 +212,7 @@ def analyze():
                 "share_price": clean(share_price),
                 "years": years,
                 "eff_years": eff_years,
-                "ret_years": years[:-1],
+                "ret_years": ret_years,
             },
             "raw": {
                 "revenue":           raw(income_df, "Total Revenue"),
@@ -210,7 +222,7 @@ def analyze():
                 "total_assets":      raw(balance_df, "Total Assets"),
                 "total_liabilities": raw(balance_df, "Total Liabilities Net Minority Interest"),
                 "equity":            raw(balance_df, "Common Stock Equity"),
-                "ebitda":            raw(income_df, "EBITDA"),
+                "ebitda":            raw(income_df, "EBITDA", "Normalized EBITDA"),
             },
             "ratios": {
                 "liquidity": {
