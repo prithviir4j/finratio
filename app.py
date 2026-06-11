@@ -75,9 +75,14 @@ def analyze():
         if hist.empty:
             return Response(json.dumps({"error": f"Ticker '{company}' not found"}), mimetype='application/json'), 404
 
-        income_df = ticker.get_income_stmt(pretty=True)[::-1]
-        balance_df = ticker.get_balance_sheet(pretty=True)[::-1]
-        common_cols = income_df.columns.intersection(balance_df.columns)
+        income_df = ticker.get_income_stmt(pretty=True)
+        balance_df = ticker.get_balance_sheet(pretty=True)
+
+        common_cols = sorted(
+            income_df.columns.intersection(balance_df.columns),
+            key=lambda x: str(x)
+        )
+
         income_df = income_df[common_cols]
         balance_df = balance_df[common_cols]
 
