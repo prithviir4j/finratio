@@ -138,10 +138,10 @@ def analyze():
         for i in range(len(assets)-1):
             avg_a   = avgfind(assets.iloc[i], assets.iloc[i+1])
             avg_e   = avgfind(cse.iloc[i], cse.iloc[i+1])
-            cap_emp = avg_a - current_liabilities.iloc[i]
-            roa_list.append(clean(round((net_profit.iloc[i]/avg_a)*100,2))          if avg_a!=0   else None)
-            roe_list.append(clean(round((net_profit.iloc[i]/avg_e)*100,2))          if avg_e!=0   else None)
-            roce_list.append(clean(round((operating_income.iloc[i]/cap_emp)*100,2)) if cap_emp!=0 else None)
+            cap_emp = avg_a - current_liabilities.iloc[i+1]
+            roa_list.append(clean(round((net_profit.iloc[i+1]/avg_a)*100,2))          if avg_a!=0   else None)
+            roe_list.append(clean(round((net_profit.iloc[i+1]/avg_e)*100,2))          if avg_e!=0   else None)
+            roce_list.append(clean(round((operating_income.iloc[i+1]/cap_emp)*100,2)) if cap_emp!=0 else None)
 
         ret_years = years[1:]
 
@@ -158,8 +158,8 @@ def analyze():
             avg_pay = avgfind(payable.iloc[i],   payable.iloc[i+1])
             avg_inv = avgfind(inventory.iloc[i], inventory.iloc[i+1])
             avg_ast = avgfind(assets.iloc[i],    assets.iloc[i+1])
-            cor_i   = cost_of_revenue.iloc[i]
-            rev_i   = total_revenue.iloc[i]
+            cor_i   = cost_of_revenue.iloc[i+1]
+            rev_i   = total_revenue.iloc[i+1]
 
             inv_turn.append(clean(round(cor_i/avg_inv,2))         if (inventory_exists and avg_inv!=0) else None)
             dso.append(clean(round((avg_rec/rev_i)*365,2))         if rev_i!=0 else None)
