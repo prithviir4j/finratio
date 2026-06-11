@@ -77,11 +77,27 @@ def analyze():
         income_df = ticker.get_income_stmt(pretty=True)
         balance_df = ticker.get_balance_sheet(pretty=True)
 
-        # align to common years, sorted oldest first
-        common_cols = sorted(
-            income_df.columns.intersection(balance_df.columns),
-            key=lambda x: str(x)
-        )
+        income_cols = sorted(income_df.columns, key=lambda x: str(x))
+        income_df = income_df[income_cols]
+
+      
+        bal_col_map = {str(c)[:10]: c for c in balance_df.columns}
+        inc_col_map = {str(c)[:10]: c for c in income_cols}
+
+        matched_bal_cols = []
+        matched_inc_cols = []
+        for yr, inc_col in sorted(inc_col_map.items()):
+            if yr in bal_col_map:
+                matched_inc_cols.append(inc_col)
+                matched_bal_cols.append(bal_col_map[yr])
+
+        income_df = income_df[matched_inc_cols]
+        balance_df = balance_df[matched_bal_cols]
+        
+        balance_df.columns = income_df.columns
+
+        years = [str(c)[:10] for c in income_df.columns]
+        last = len(years) - 1
         income_df = income_df[common_cols]
         balance_df = balance_df[common_cols]
 
