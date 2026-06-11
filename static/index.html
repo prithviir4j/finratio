@@ -358,7 +358,8 @@ function renderDashboard(d) {
   // ── All Ratios table ──
   const sections=[
     {title:'Liquidity', rows:[['Current Ratio',liq.current_ratio,years],['Quick Ratio',liq.quick_ratio,years],['Cash Ratio',liq.cash_ratio,years]]},
-    {title:'Profitability', rows:[['Gross Profit Margin (%)',prof.gpm,years],['Operating Profit Margin (%)',prof.opm,years],['Net Profit Margin (%)',prof.npm,years],['ROA (%)',prof.roa,retYears],['ROE (%)',prof.roe,retYears],['ROCE (%)',prof.roce,retYears]]},
+    {title:'Profitability — Margins', rows:[['Gross Profit Margin (%)',prof.gpm,years],['Operating Profit Margin (%)',prof.opm,years],['Net Profit Margin (%)',prof.npm,years]]},
+    {title:'Profitability — Returns', rows:[['ROA (%)',prof.roa,retYears],['ROE (%)',prof.roe,retYears],['ROCE (%)',prof.roce,retYears]]},
     {title:'Efficiency', rows:[['Inventory Turnover',eff.inventory_turnover,effYears],['Receivables Turnover',eff.receivables_turnover,effYears],['Assets Turnover',eff.assets_turnover,effYears],['Payables Turnover',eff.payables_turnover,effYears],['DSI',eff.dsi,effYears],['DSO',eff.dso,effYears],['DPO',eff.dpo,effYears]]},
     {title:'Leverage', rows:[['Debt to Assets',lv.debt_to_assets,years],['Debt to Equity',lv.debt_to_equity,years],['Interest Coverage',lv.interest_coverage,years]]},
     {title:'Price Ratios', rows:[['Basic EPS',pr.basic_eps,years],['Diluted EPS',pr.diluted_eps,years],['P/E',pr.pe_ratio,years],['PEG',pr.peg_ratio,years],['Div per Share',pr.dps,years],['Div Yield (%)',pr.div_yield,years],['Div Payout (%)',pr.div_payout,years]]},
