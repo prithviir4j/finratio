@@ -143,7 +143,7 @@ def analyze():
             roe_list.append(clean(round((net_profit.iloc[i]/avg_e)*100,2))          if avg_e!=0   else None)
             roce_list.append(clean(round((operating_income.iloc[i]/cap_emp)*100,2)) if cap_emp!=0 else None)
 
-        ret_years = years[:-1]
+        ret_years = years[1:]
 
         # --- Efficiency ---
         cost_of_revenue  = s(income_df, "Cost Of Revenue")
@@ -169,7 +169,7 @@ def analyze():
             rec_turn.append(clean(round(rev_i/avg_rec,2))          if avg_rec!=0 else None)
             ast_turn.append(clean(round(rev_i/avg_ast,2))          if avg_ast!=0 else None)
 
-        eff_years = years[:-1]
+        eff_years = years[1:]
 
         # --- Leverage ---
         total_liabilities = s(balance_df, "Total Liabilities Net Minority Interest")
