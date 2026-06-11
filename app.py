@@ -98,11 +98,6 @@ def analyze():
 
         years = [str(c)[:10] for c in income_df.columns]
         last = len(years) - 1
-        income_df = income_df[common_cols]
-        balance_df = balance_df[common_cols]
-
-        years = [str(c)[:10] for c in income_df.columns]
-        last = len(years) - 1
 
         def s(df, *keys): return safe(df, *keys)
 
